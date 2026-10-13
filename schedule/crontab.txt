@@ -1,0 +1,4 @@
+# Daily at 06:15 America/Chicago, on the machine that hosts the review app (shares data/state.db).
+# The pipeline only queues proposals; it never writes to the CRM. Re-runs are idempotent.
+CRON_TZ=America/Chicago
+15 6 * * * cd /opt/bellhaven-sync && . ./.env && /usr/bin/flock -n /tmp/bellhaven-sync.lock ./.venv/bin/python run_pipeline.py >> logs/pipeline.log 2>&1

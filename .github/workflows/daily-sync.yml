@@ -1,0 +1,47 @@
+# Daily scrape + match. Queues proposals only; approvals and CRM writes happen in the review app.
+# State (data/state.db) is carried between runs with actions/cache so decided items are never
+# re-proposed. In production the DB would live somewhere durable (Postgres / S3) shared with the app.
+name: daily-bellhaven-sync
+
+on:
+  schedule:
+    - cron: "15 11 * * *"   # 11:15 UTC ≈ 06:15 Central
+  workflow_dispatch: {}
+
+concurrency:
+  group: bellhaven-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q tests
+      - name: Restore state
+        uses: actions/cache/restore@v4
+        with:
+          path: data/state.db
+          key: bh-state-${{ github.run_id }}
+          restore-keys: bh-state-
+      - name: Run pipeline
+        env:
+          BH_TOKEN: ${{ secrets.BH_TOKEN }}
+        run: python run_pipeline.py
+      - name: Save state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/state.db
+          key: bh-state-${{ github.run_id }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: run-snapshot
+          path: data/snapshots/
+          retention-days: 30
