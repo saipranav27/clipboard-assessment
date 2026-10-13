@@ -14,7 +14,7 @@ from collections import defaultdict
 from . import config
 from .crm import fget
 from .normalize import (name_similarity, street_similarity, norm_city, norm_state, zip5,
-                        phone10, norm_name, norm_street, to_number, care_set, care_canon, clean)
+                        phone10, norm_name, name_key, norm_street, is_po_box, to_number, care_set, care_canon, clean)
 
 TODAY = dt.date.today().isoformat()
 
@@ -154,6 +154,9 @@ def confidence(score, signals):
     strong = any(s.startswith("street address identical") for s in signals) and "ZIP matches" in signals
     if strong and score >= 85:
         return "high"
+    name_sim = next((float(s.split()[-1]) for s in signals if s.startswith("name similarity")), 0.0)
+    if name_sim >= 0.95 and "ZIP matches" in signals and "city matches" in signals:
+        return "high"  # e.g. CRM holds a PO Box, so there is no street signal
     return "medium" if score >= 70 else "low"
 
 
@@ -430,9 +433,9 @@ def _survivor_proposals(a, loc, ctx, bh_id, bh_family, meta):
         changes[ctx.key(logical)] = new
         diff.append({"field": label or logical, "crm": old, "website": new})
 
-    if norm_name(ctx.v(a, "name")) != norm_name(loc["name"]):
+    if name_key(ctx.v(a, "name")) != name_key(loc["name"]):
         setf("name", loc["name"], ctx.v(a, "name"))
-    if loc["street"] and norm_street(ctx.v(a, "street")) != norm_street(loc["street"]):
+    if loc["street"] and (is_po_box(ctx.v(a, "street")) or norm_street(ctx.v(a, "street")) != norm_street(loc["street"])):
         setf("street", loc["street"], ctx.v(a, "street"))
     if loc["city"] and norm_city(ctx.v(a, "city")) != norm_city(loc["city"]):
         setf("city", loc["city"], ctx.v(a, "city"))

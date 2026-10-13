@@ -40,6 +40,14 @@ def norm_name(s):
     return " ".join(s.split())
 
 
+def name_key(s):
+    """Comparison key that ignores purely cosmetic differences (punctuation, 'the',
+    of/at, health care/healthcare, rehab/rehabilitation, centre/center, &/and)."""
+    s = norm_name(s).replace("health care", "healthcare")
+    toks = [t for t in s.split() if t not in {"the", "of", "at", "and"}]
+    return " ".join(toks)
+
+
 def name_core(s):
     return [t for t in norm_name(s).split() if t not in _NAME_STOP]
 
@@ -78,7 +86,13 @@ def name_similarity(a, b):
     return max(full, jac)
 
 
+def is_po_box(s):
+    return bool(re.match(r"^\s*(p\.?\s*o\.?\s*box|post office box|box)\b", clean(s), re.I))
+
+
 def street_similarity(a, b):
+    if is_po_box(a) or is_po_box(b):
+        return None  # a mailing address says nothing about the building
     na, nb = norm_street(a), norm_street(b)
     if not na or not nb:
         return None  # unknown, not a mismatch
