@@ -14,7 +14,7 @@ from collections import defaultdict
 from . import config
 from .crm import fget
 from .normalize import (name_similarity, street_similarity, norm_city, norm_state, zip5,
-                        phone10, norm_name, norm_street, to_number, care_set, clean)
+                        phone10, norm_name, norm_street, to_number, care_set, care_canon, clean)
 
 TODAY = dt.date.today().isoformat()
 
@@ -174,15 +174,31 @@ def _new_account_data(loc, ctx, parent_id, note):
     if loc.get("phone"):
         data[ctx.key("phone")] = loc["phone"]
     if ctx.fields.get("care") and loc.get("care_offerings"):
-        sample = next((ctx.v(a, "care") for a in ctx.accounts if ctx.v(a, "care")), None)
-        data[ctx.fields["care"]] = loc["care_offerings"] if not isinstance(sample, str) else ", ".join(loc["care_offerings"])
+        data[ctx.fields["care"]] = _care_value(loc, ctx)
     return data
 
 
-def _care_value(loc, ctx, current):
-    if isinstance(current, str):
-        return ", ".join(loc["care_offerings"])
-    return list(loc["care_offerings"])
+def _care_vocab(ctx):
+    """canonical -> the spelling the CRM actually uses (most common)."""
+    from collections import Counter
+    seen = Counter(str(ctx.v(a, "care")) for a in ctx.accounts if ctx.v(a, "care"))
+    vocab = {}
+    for val, _ in seen.most_common():
+        for part in val.split(","):
+            vocab.setdefault(care_canon(part), part.strip())
+    return vocab
+
+
+def _care_value(loc, ctx):
+    """CRM care_type is a single string. Write the website's offerings in CRM vocabulary,
+    comma-joined only if the CRM already uses comma-joined values."""
+    vocab = _care_vocab(ctx)
+    vals = [vocab.get(care_canon(c), c) for c in loc["care_offerings"]]
+    multi = any("," in str(ctx.v(a, "care") or "") for a in ctx.accounts)
+    sample = next((ctx.v(a, "care") for a in ctx.accounts if ctx.v(a, "care")), None)
+    if isinstance(sample, list):
+        return vals
+    return ", ".join(vals) if multi else vals[0]
 
 
 def build_proposals(locations, accounts, fields, parent_override=None, scrape_errors=()):
@@ -428,8 +444,9 @@ def _survivor_proposals(a, loc, ctx, bh_id, bh_family, meta):
         setf("phone", loc["phone"], ctx.v(a, "phone"))
     if ctx.fields.get("care") and loc.get("care_offerings"):
         cur = ctx.v(a, "care")
-        if care_set(cur) != care_set(loc["care_offerings"]):
-            setf("care", _care_value(loc, ctx, cur), cur, "care offerings")
+        # Single-valued CRM field: only flag when it is empty or shares nothing with the website.
+        if not care_set(cur) or not (care_set(cur) & care_set(loc["care_offerings"])):
+            setf("care", _care_value(loc, ctx), cur, "care type")
     if ctx.v(a, "status") != config.STATUS_ACTIVE:
         setf("status", config.STATUS_ACTIVE, ctx.v(a, "status"))
     if changes:

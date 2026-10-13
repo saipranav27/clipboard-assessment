@@ -59,7 +59,27 @@ def execute(crm, ops, accounts_cache=None):
                 data[note_key] = (existing + "\n" if existing else "") + op["append_note"]
             crm.update_account(aid, data)
             log.append({"op": "patch", "id": aid, "data": data})
+            if crm.key("parent_id") in data:
+                _sync_parent_name(crm, aid, data[crm.key("parent_id")], log)
+    for new_id in refs.values():
+        created = crm.get_account(new_id)
+        _sync_parent_name(crm, new_id, created.get(crm.key("parent_id")), log)
     return refs, log
+
+
+def _sync_parent_name(crm, aid, parent_id, log):
+    """parent_name is denormalised; if the server doesn't refresh it, set it ourselves."""
+    pn_key = (crm.fields or {}).get("parent_name")
+    if not pn_key or not parent_id:
+        return
+    try:
+        want = crm.get_account(parent_id).get(crm.key("name"))
+        have = crm.get_account(aid).get(pn_key)
+        if want and have != want:
+            crm.update_account(aid, {pn_key: want})
+            log.append({"op": "patch", "id": aid, "data": {pn_key: want}, "why": "sync parent_name"})
+    except Exception as e:  # noqa: BLE001 - cosmetic field, never fail the proposal over it
+        log.append({"op": "warn", "id": aid, "error": f"parent_name sync failed: {e}"})
 
 
 def apply_proposal(con, crm, fp):

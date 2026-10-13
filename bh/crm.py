@@ -52,23 +52,21 @@ class CRM:
 
     # -- accounts ------------------------------------------------------------
     def list_accounts(self, **filters):
-        out, page, size = [], 1, 100
-        while True:
-            body = self._req("GET", "/accounts", params={**filters, "page": page, "page_size": size})
+        """All pages. Stops on an empty page, a page with no new ids, or the reported total.
+        Never trusts page_size, since servers often cap it."""
+        uniq, seen = [], set()
+        for page in range(1, 500):
+            body = self._req("GET", "/accounts", params={**filters, "page": page, "page_size": 50})
             items, total = self._items(body)
-            out.extend(items)
-            if not items or len(items) < size or (total and len(out) >= int(total)):
+            new = 0
+            for a in items:
+                key = a.get("account_id") or a.get("id") or repr(sorted(a.items()))
+                if key not in seen:
+                    seen.add(key)
+                    uniq.append(a)
+                    new += 1
+            if not items or not new or (total and len(uniq) >= int(total)):
                 break
-            page += 1
-            if page > 200:
-                break
-        # de-dupe defensively in case the server ignores page_size
-        seen, uniq = set(), []
-        for a in out:
-            key = a.get("id")
-            if key not in seen:
-                seen.add(key)
-                uniq.append(a)
         return uniq
 
     def get_account(self, account_id):

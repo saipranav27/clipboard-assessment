@@ -55,7 +55,7 @@ def env(tmp_path, monkeypatch):
 
 
 def acct(app, aid):
-    return next(a for a in app.config["STATE"]["accounts"] if a["id"] == aid)
+    return next(a for a in app.config["STATE"]["accounts"] if a["account_id"] == aid)
 
 
 def test_full_flow(env):
@@ -105,12 +105,17 @@ def test_full_flow(env):
     assert acct(env, "A007")["duplicate_of_account"] == "A006" and acct(env, "A007")["status"] == "Inactive"
     assert acct(env, "A014")["chow_current_account"] == "A015" and acct(env, "A014")["parent_id"] == "A200"
     assert acct(env, "A002")["name"] == "Bellhaven of Wooster" and "formerly" in acct(env, "A002")["note"]
-    assert acct(env, "A009")["zip"] == "43615"
+    assert acct(env, "A009")["billing_zip"] == "43615"
     assert acct(env, "A016")["status"] == "Active"
     assert acct(env, "A017")["status"] == "Active"                                # rejected -> untouched
     assert acct(env, "A101")["duplicate_of_account"] == "A100"
     findlay = [a for a in env.config["STATE"]["accounts"] if a["name"] == "Bellhaven Meadows of Findlay"]
     assert len(findlay) == 1 and findlay[0]["parent_id"] == "A100"
+    bh = "Bellhaven Senior Living (Parent Account)"
+    assert acct(env, "A004")["parent_name"] == bh and new["parent_name"] == bh and findlay[0]["parent_name"] == bh
+    assert findlay[0]["care_type"] == "Assisted Living"           # CRM vocabulary, single value
+    assert new["care_type"] == "Assisted Living"
+    assert acct(env, "A003")["parent_name"] == "Harborview Care Group (Parent Account)"  # old CHOW record untouched
 
     # Re-run: nothing already decided comes back, and nothing new appears.
     n_before = len(env.config["STATE"]["accounts"])

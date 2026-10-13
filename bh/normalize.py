@@ -34,6 +34,7 @@ def street_number(s):
 
 def norm_name(s):
     s = clean(s).lower().replace("&", " and ").replace("centre", "center")
+    s = s.replace("(parent account)", " ")
     s = re.sub(r"\brehab\b", "rehabilitation", s)
     s = re.sub(r"[^\w\s]", " ", s)
     return " ".join(s.split())
@@ -99,11 +100,25 @@ def to_number(v):
         return 0.0
 
 
+CARE_SYNONYMS = {  # website wording -> CRM-style wording
+    "short term rehabilitation and nursing": "skilled nursing",
+    "short term rehabilitation": "skilled nursing",
+    "rehabilitation and nursing": "skilled nursing",
+    "nursing": "skilled nursing",
+    "memory support": "memory care",
+}
+
+
+def care_canon(s):
+    n = norm_name(s)
+    return CARE_SYNONYMS.get(n, n)
+
+
 def care_set(v):
-    if v is None:
+    if v is None or v == "":
         return set()
     if isinstance(v, str):
         parts = re.split(r"[;,|/]\s*", v)
     else:
         parts = list(v)
-    return {norm_name(p) for p in parts if clean(p)}
+    return {care_canon(p) for p in parts if clean(p)}

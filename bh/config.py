@@ -31,12 +31,12 @@ NOTE_TAG = "[bellhaven-sync]"
 # The API spec does not publish field names, so each logical field lists the names we
 # accept. The real key is detected from live data at runtime (see crm.detect_fields).
 FIELD_ALIASES = {
-    "id": ["id", "account_id"],
+    "id": ["account_id", "id"],
     "name": ["name", "account_name"],
-    "street": ["street", "address", "address1", "street_address", "address_line1"],
-    "city": ["city"],
-    "state": ["state"],
-    "zip": ["zip", "zip_code", "postal_code", "zipcode"],
+    "street": ["billing_street", "street", "address", "address1", "street_address", "address_line1"],
+    "city": ["billing_city", "city"],
+    "state": ["billing_state", "state"],
+    "zip": ["billing_zip", "zip", "zip_code", "postal_code", "zipcode"],
     "phone": ["phone", "phone_number"],
     "parent_id": ["parent_id", "parent_account_id"],
     "status": ["status"],
@@ -45,8 +45,9 @@ FIELD_ALIASES = {
     "outstanding_ar": ["outstanding_ar"],
     "duplicate_of_account": ["duplicate_of_account", "duplicate_of"],
     "chow_current_account": ["chow_current_account"],
-    "care": ["care_offerings", "care_types", "care_levels", "services", "offerings", "service_lines"],
+    "care": ["care_type", "care_offerings", "care_types", "care_levels", "services", "offerings", "service_lines"],
     "website": ["website", "url"],
+    "parent_name": ["parent_name"],
 }
 
 STATUS_ACTIVE = "Active"

@@ -26,16 +26,18 @@ SITE = [  # (slug, name, street, city, state, zip, care, on_directory)
 
 def seed():
     A = []
-    def acct(id, name, street="", city="", state="", zip="", parent=None, status="Active", rev=0, ar=0, dup=None, chow=None, phone="(555) 000-1111"):
-        A.append({"id": id, "name": name, "street": street, "city": city, "state": state, "zip": zip, "phone": phone,
-                  "parent_id": parent, "status": status, "note": "", "lifetime_revenue": rev, "outstanding_ar": ar,
-                  "duplicate_of_account": dup, "chow_current_account": chow})
-    acct("A100", "Bellhaven Senior Living", "400 Bellhaven Way", "Columbus", "OH", "43215")
+    def acct(id, name, street="", city="", state="", zip="", parent=None, status="Active", rev=0, ar=0, dup=None, chow=None, phone="(555) 000-1111", care="Skilled Nursing"):
+        A.append({"account_id": id, "name": name, "parent_id": parent or "", "parent_name": "",
+                  "billing_street": street, "billing_city": city, "billing_state": state, "billing_zip": zip,
+                  "care_type": care, "phone": phone, "status": status, "note": "", "lifetime_revenue": rev,
+                  "outstanding_ar": ar, "duplicate_of_account": dup or "", "chow_current_account": chow or "",
+                  "created_by_candidate": False})
+    acct("A100", "Bellhaven Senior Living (Parent Account)", "400 Bellhaven Way", "Columbus", "OH", "43215")
     acct("A101", "Bellhaven Senior Living, LLC", "", "Columbus", "OH")
-    acct("A200", "Harborview Care Group", "1 Harbor Rd", "Cleveland", "OH")
-    acct("A300", "Cedar Trail Health", "9 Cedar Trl", "Dayton", "OH")
-    acct("A400", "Summit Health Partners", "5 Summit Way", "Pittsburgh", "PA")
-    acct("A001", "Bellhaven of Maplewood", "100 Maple Avenue", "Maplewood", "OH", "45340", "A100")  # clean
+    acct("A200", "Harborview Care Group (Parent Account)", "1 Harbor Rd", "Cleveland", "OH")
+    acct("A300", "Cedar Trail Health (Parent Account)", "9 Cedar Trl", "Dayton", "OH")
+    acct("A400", "Summit Health Partners (Parent Account)", "5 Summit Way", "Pittsburgh", "PA")
+    acct("A001", "Bellhaven of Maplewood", "100 Maple Avenue", "Maplewood", "OH", "45340", "A100", care="Assisted Living")  # clean
     acct("A002", "Bellhaven Rehab of Wooster", "200 Beall Ave", "Wooster", "OH", "44691", "A100")  # outdated name
     acct("A003", "Harborview Terrace of Akron", "300 Market Street", "Akron", "OH", "44303", "A200", rev=52000, ar=1250)  # CHOW
     acct("A004", "Harborview of Saline", "400 Michigan Ave", "Saline", "MI", "48176", "A200", rev=30000, ar=0)  # reparent
@@ -55,6 +57,9 @@ def seed():
     acct("A018", "Amberly Manor", "4390 Darrow Road", "Hudson", "OH", "44236", "A300", rev=1000, ar=100)  # CHOW
     acct("A019", "Erie Shores Senior Care", "1400 Peninsula Drive", "Erie", "PA", "16505", "A400", rev=0, ar=0)  # reparent
     acct("A020", "Bellhaven of Toledo", "55 Other St", "Toledo", "OH", "43604", "A400")  # unrelated similar name
+    names = {a["account_id"]: a["name"] for a in A}
+    for a in A:
+        a["parent_name"] = names.get(a["parent_id"], "") if a["parent_id"] else ""
     return A
 
 
@@ -105,25 +110,25 @@ def make_app():
     def list_accounts():
         auth()
         rows = state["accounts"]
-        for f in ("city", "state", "zip", "parent_id"):
+        for f, col in (("city", "billing_city"), ("state", "billing_state"), ("zip", "billing_zip"), ("parent_id", "parent_id")):
             if request.args.get(f):
-                rows = [a for a in rows if str(a.get(f) or "").lower() == request.args[f].lower()]
+                rows = [a for a in rows if str(a.get(col) or "").lower() == request.args[f].lower()]
         if request.args.get("q"):
             rows = [a for a in rows if request.args["q"].lower() in a["name"].lower()]
-        page_, size = int(request.args.get("page", 1)), int(request.args.get("page_size", 50))
+        page_, size = int(request.args.get("page", 1)), min(int(request.args.get("page_size", 50)), 50)  # server caps at 50
         return jsonify({"items": copy.deepcopy(rows[(page_ - 1) * size:page_ * size]), "total": len(rows),
                         "page": page_, "page_size": size})
 
     @app.get("/api/v1/accounts/<aid>")
     def get_account(aid):
         auth()
-        a = next((a for a in state["accounts"] if a["id"] == aid), None)
+        a = next((a for a in state["accounts"] if a["account_id"] == aid), None)
         return (jsonify(a), 200) if a else (jsonify({"detail": "not found"}), 404)
 
     @app.patch("/api/v1/accounts/<aid>")
     def patch_account(aid):
         auth()
-        a = next((a for a in state["accounts"] if a["id"] == aid), None)
+        a = next((a for a in state["accounts"] if a["account_id"] == aid), None)
         if not a:
             return jsonify({"detail": "not found"}), 404
         body = request.get_json()
@@ -136,8 +141,8 @@ def make_app():
     def create_account():
         auth()
         body = request.get_json()
-        a = {"id": f"A{next(ids)}", "lifetime_revenue": 0, "outstanding_ar": 0, "duplicate_of_account": None,
-             "chow_current_account": None, **body}
+        a = {"account_id": f"A{next(ids)}", "lifetime_revenue": 0, "outstanding_ar": 0, "duplicate_of_account": "",
+             "chow_current_account": "", "parent_name": "", "created_by_candidate": True, **body}
         state["accounts"].append(a)
         return jsonify(a), 201
 
