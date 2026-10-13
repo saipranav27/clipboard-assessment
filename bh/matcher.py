@@ -368,8 +368,7 @@ def _loser_proposal(a, survivor, loc, ctx, bh_family, meta):
     if rev > 0 or ar > 0:
         base_ev["signals"].append(f"Note: losing copy has billing history (revenue {rev:,.2f}, AR {ar:,.2f}); "
                                   f"duplicate_of keeps it traceable to {sid}")
-    base_ev["signals"].append(f"Survivor {sid} chosen for: Bellhaven parent, Active status, billing history, "
-                              f"match strength, completeness, then oldest id")
+    base_ev["signals"].append(f"Survivor {sid} chosen because: " + _survivor_reason(survivor, a, ctx, bh_family))
     return {"kind": "DUPLICATE", "subject": f"acct:{aid}", "account_id": aid,
             "title": f"Duplicate: '{ctx.v(a, 'name')}' ({aid}) → keep '{ctx.v(survivor, 'name')}' ({sid})",
             "confidence": confidence(meta[1], meta[2]), "evidence": base_ev,
@@ -377,6 +376,22 @@ def _loser_proposal(a, survivor, loc, ctx, bh_family, meta):
                      "data": {ctx.key("duplicate_of_account"): sid, ctx.key("status"): config.STATUS_INACTIVE},
                      "append_note": f"{config.NOTE_TAG} {TODAY}: duplicate of {sid} "
                                     f"(same facility: {loc['name']}, {loc['street']}, {loc['city']})."}]}
+
+
+def _survivor_reason(s, loser, ctx, bh_family):
+    """Explain, honestly, which ranking rule actually separated survivor from loser."""
+    def under_bh(x):
+        return str(ctx.v(x, "parent_id") or "") in bh_family
+    if under_bh(s) and not under_bh(loser):
+        return "it is already under Bellhaven"
+    if ctx.v(s, "status") == config.STATUS_ACTIVE and ctx.v(loser, "status") != config.STATUS_ACTIVE:
+        return "it is Active and this copy is not"
+    if sum(ctx.billing(s)) > 0 and sum(ctx.billing(loser)) == 0:
+        return "it carries the billing history"
+    tie = "both are under Bellhaven" if under_bh(s) else "neither is under Bellhaven"
+    tail = "" if under_bh(s) else " (its own proposals re-parent and rename it)"
+    return (f"{tie} with the same status and billing, so the record with the closer "
+            f"name/address match to the website was kept{tail}")
 
 
 def _survivor_proposals(a, loc, ctx, bh_id, bh_family, meta):

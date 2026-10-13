@@ -138,6 +138,9 @@ def helpers():
 def _row(r):
     d = dict(r)
     d["ev"] = json.loads(r["evidence"] or "{}")
+    for side in ("crm", "target"):  # CRM stores care as `care`; show it on the care_offerings row
+        if isinstance(d["ev"].get(side), dict) and d["ev"][side].get("care") is not None:
+            d["ev"][side]["care_offerings"] = d["ev"][side]["care"]
     d["ops_pretty"] = json.dumps(json.loads(r["ops"] or "[]"), indent=2)
     d["result_pretty"] = json.dumps(json.loads(r["result"]), indent=2) if r["result"] else ""
     return d
