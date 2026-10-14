@@ -1,4 +1,4 @@
-# Writeup (draft — edit numbers after the real run)
+# Writeup
 
 ## Matching approach
 
@@ -54,10 +54,48 @@ without AR, duplicate parent, duplicate facility records, finished CHOW pair, mi
 rebrand, wrong ZIP, inactive account, homepage-only location, same-named facility in another state)
 and asserting the end state of the CRM, plus re-run, double-approve and stale-write tests. It caught
 two real bugs: the care-offerings parser grabbing the phone line on one markup, and noisy
-proposals from phone diffs. Then I ran `explore.py` on the real sandbox and tuned against it: _[fill in]_.
+proposals from phone diffs.
+
+Then I ran `explore.py` (read-only) on the real sandbox and tuned against what it showed:
+- The API spec publishes no field names. The real schema uses `account_id`, `billing_street/city/state/zip`
+  and `care_type`; the client now detects field names from live data.
+- The first run loaded only 1 of 121 accounts. De-duplication keyed on `id`, which doesn't exist here, so
+  every account looked identical. Fixed, and pagination no longer trusts the server's page size.
+- Ashtabula's CRM address was "PO Box 517", which blocked an address match. PO Boxes are now treated as
+  "no street information" rather than a mismatch.
+- Spelling variants ("Rehab and Nursing" vs "Rehabilitation & Nursing", "Health Care Center" vs
+  "Healthcare Centre", "of" vs "at") were producing pointless renames, so cosmetic differences are ignored.
+- Website care wording is mapped to the CRM's vocabulary ("Short-Term Rehabilitation & Nursing" → "Skilled Nursing").
+- I didn't trust the "New location" proposals blindly. I checked the closest CRM records myself: the CRM's
+  "Amberly Manor" is in Colorado Springs, and "Union Square Senior Living" is at 240 Market St, not
+  118 Union Square Dr. Both are different facilities, so creating new accounts was correct.
+- The real data became a regression test (`tests/test_real_excerpt.py`) so these outcomes stay locked in.
 
 ## Results on my CRM copy
-_[fill in: N locations scraped, N matched, proposals by type, approved/rejected and why]_
+35 locations scraped (34 in the directory plus Findlay from the homepage), 121 CRM accounts read.
+The first run produced 27 proposals. I approved all 27; none failed.
+
+| Proposal | Count | Accounts |
+|---|---|---|
+| Change of ownership (new account, old one linked) | 2 | Tiffin ($84,000 revenue / $12,400 AR), Marietta ($51,250 / $3,800), both from Cedar Trail |
+| Re-parent directly | 4 | Lima (revenue, $0 AR), Findlay (no parent, $0 AR), Zanesville and Kettering (no revenue) |
+| Duplicate → Inactive | 7 | Monroe ×2, Kettering ×2, Port Clinton, Erie, Owosso |
+| Field fix | 7 | Renames: Sunny Acres → Willow Creek, Riverbend Manor → Chagrin Falls, Chesterton, Zanesville, Kettering. Ashtabula PO Box → street. Portsmouth ZIP 45626 → 45662 |
+| New location | 4 | Amberly Manor, Union Square, Batavia, Carlisle (PA) |
+| Not on website → Needs Review | 3 | Alliance, Coldwater, Sandusky ($130,000 revenue / $5,200 AR, so left for a human) |
+
+Judgment calls:
+- **Ashtabula.** I first rejected it: it overwrites a field labelled *billing* street with a physical address.
+  I reopened and approved it, because this CRM has only one address field and a PO Box makes the facility
+  impossible to match by address. The review app gained a "Reopen" button for exactly this case.
+- **Sunny Acres → Bellhaven Willow Creek.** Name similarity is only 0.20, so I checked before approving:
+  same street, ZIP and city, already under Bellhaven. It's a rebrand, and the old name is kept in the note.
+- **Kettering.** Three records at one address, none with billing, so which survives is arbitrary. The survivor
+  is re-parented and renamed by its own proposals.
+- **Akron, Defiance and Meadville** have outstanding AR but are already under Bellhaven, so no billing rule
+  applied and nothing was proposed.
+
+After approval, a re-run produced **0 proposals**: all 35 locations match a CRM account at high confidence.
 
 ## What I'd build next
 - Durable shared state (Postgres) instead of SQLite, plus reviewer identity on each decision.
@@ -68,4 +106,4 @@ _[fill in: N locations scraped, N matched, proposals by type, approved/rejected 
 - Precision tracking: approve/reject rate per proposal type and confidence, to tune thresholds.
 
 ## Time spent
-_[honest estimate]_
+_[Sai: add your honest estimate]_
