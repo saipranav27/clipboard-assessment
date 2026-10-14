@@ -113,6 +113,7 @@ a.crm{font-size:12px;color:var(--accent)}.err{color:var(--bad);font-size:12px}
 {% if r.status=='pending' %}<form class="actions" method="post" action="{{url_for('decide',fp=r.fingerprint)}}">
 <input type="text" name="comment" placeholder="Optional comment (saved with the decision)">
 <button class="approve" name="action" value="approve">Approve & write to CRM</button><button class="reject" name="action" value="reject">Reject</button></form>
+{% elif r.status=='rejected' %}<form class="actions" method="post" action="{{url_for('reopen',fp=r.fingerprint)}}"><span class="conf">Rejected items are never re-proposed by the daily run.</span><button class="ghost">Reopen (move back to Pending)</button></form>
 {% elif r.status=='failed' %}<form class="actions" method="post" action="{{url_for('retry_one',fp=r.fingerprint)}}"><button class="ghost">Return to queue</button></form>{% endif %}
 </div>{% else %}<div class="empty">Nothing here.</div>{% endfor %}
 {% endif %}</main>
@@ -208,6 +209,15 @@ def bulk():
 @app.post("/retry/<fp>")
 def retry_one(fp):
     retry(store.connect(), fp)
+    return redirect(url_for("index", tab="pending"))
+
+
+@app.post("/reopen/<fp>")
+def reopen(fp):
+    """Undo a rejection made by mistake. Only rejected items; applied changes are already in the CRM."""
+    con = store.connect()
+    con.execute("UPDATE proposals SET status='pending', decided_at=NULL WHERE fingerprint=? AND status='rejected'", (fp,))
+    flash("Moved back to Pending.")
     return redirect(url_for("index", tab="pending"))
 
 
