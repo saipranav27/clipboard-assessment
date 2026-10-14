@@ -12,7 +12,7 @@ class CRMError(Exception):
 class CRM:
     def __init__(self, api_base=None, token=None, session=None):
         self.api_base = (api_base or config.API_BASE).rstrip("/")
-        token = token if token is not None else config.TOKEN
+        token = (token if token is not None else config.TOKEN).strip()
         if not token:
             raise CRMError("Set BH_TOKEN to your CRM API token.")
         self.s = session or requests.Session()

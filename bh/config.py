@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 BASE_URL = os.environ.get("BH_BASE_URL", "https://analyst-assessment-production.up.railway.app").rstrip("/")
 API_BASE = os.environ.get("BH_API_BASE", BASE_URL + "/api/v1").rstrip("/")
-TOKEN = os.environ.get("BH_TOKEN", "")
+TOKEN = os.environ.get("BH_TOKEN", "").strip()  # tolerate pasted whitespace/newlines
 
 DB_PATH = Path(os.environ.get("BH_DB_PATH", ROOT / "data" / "state.db"))
 SNAPSHOT_DIR = Path(os.environ.get("BH_SNAPSHOT_DIR", ROOT / "data" / "snapshots"))
